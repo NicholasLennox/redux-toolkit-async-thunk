@@ -56,7 +56,7 @@ Whatever the async function returns becomes `action.payload` when the request co
 RTK also generates three lifecycle action types automatically from the name you gave it:
 
 | Type | When it fires |
-|||
+|---|---|
 | `joke/fetchJoke/pending` | The moment dispatch is called, before the fetch begins |
 | `joke/fetchJoke/fulfilled` | The fetch completed and returned a result |
 | `joke/fetchJoke/rejected` | The fetch failed or threw an error |
