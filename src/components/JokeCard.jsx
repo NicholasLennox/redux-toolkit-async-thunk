@@ -3,13 +3,9 @@ import { useSelector, useDispatch } from 'react-redux'
 import { fetchJoke } from '../store/jokeSlice'
 
 export default function JokeCard() {
-  const joke = useSelector(state => state.joke.joke)
+  const { joke, loading, error } = useSelector(state => state.joke)
   const dispatch = useDispatch()
 
-  // fetch a joke when the component mounts
-  // same dispatch pattern as before - the difference is that fetchJoke
-  // is a thunk, not a plain action creator. dispatch handles both the same way.
-  // RTK takes care of the async work before anything reaches the store.
   useEffect(() => {
     dispatch(fetchJoke())
   }, [])
@@ -20,14 +16,29 @@ export default function JokeCard() {
         <div className="card shadow-sm">
           <div className="card-body text-center p-5">
             <div className="fs-1 mb-3">😄</div>
-            <p className="fs-5 mb-4">
-              {joke ?? 'Loading...'}
-            </p>
+
+            {loading && (
+              <div className="mb-4">
+                <div className="spinner-border text-secondary" role="status" />
+              </div>
+            )}
+
+            {error && (
+              <div className="alert alert-danger mb-4">
+                Something went wrong: {error}
+              </div>
+            )}
+
+            {!loading && !error && (
+              <p className="fs-5 mb-4">{joke ?? 'No joke loaded.'}</p>
+            )}
+
             <button
               className="btn btn-dark"
+              disabled={loading}
               onClick={() => dispatch(fetchJoke())}
             >
-              Get another joke
+              {loading ? 'Fetching...' : 'Get another joke'}
             </button>
           </div>
         </div>

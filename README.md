@@ -1,114 +1,103 @@
-# Redux Toolkit Intro - Async Thunk Demo
+# Redux Toolkit Intro - Async Thunk Demo (Complete Example)
 
 ## What this app does
 
-It fetches a dad joke from a public API and displays it on screen. There is a button to fetch another one.
+Same app as the main branch - it fetches a dad joke and displays it. The difference is that this branch handles the full reality of a network request: it might be in flight, it might succeed, it might fail.
 
-That is it. The app exists to show one thing: how Redux Toolkit handles asynchronous operations. The joke is just something to look at.
+If you have not read the main branch README, start there. This branch builds directly on it.
 
 
 
-## Before anything else - what is a thunk
+## The reality of network requests
 
-Every state change in Redux follows the same rule: dispatch an action, the reducer handles it, state updates. That works perfectly when everything is synchronous.
+In the main branch we only handled `fulfilled` - the happy path. In a real app a network request has three possible states at any moment:
 
-Fetching data is not synchronous. You fire a request, wait for a response, then decide what to do with the result. A plain action object cannot do that - it is just data. It has no concept of waiting.
+- it is in flight and we are waiting
+- it came back with data
+- it came back with an error
 
-A thunk solves this by changing what you dispatch. Instead of an object, you dispatch a function. That function receives `dispatch` as an argument, does its async work, and then dispatches a plain action when it is ready.
+Your UI should reflect all three. A user staring at a blank screen does not know if the app is loading or broken. Handling these states is not extra complexity - it is basic honesty about what is happening.
 
-The word "thunk" just means a function that wraps some work to be done later. That is the entire idea.
 
-In bare Redux you had to write this yourself:
+
+## Multiple fields in one slice
+
+Until now every slice has had one field in `initialState`. There is nothing special about that - it was just enough for the job. A slice can hold as many fields as the feature needs.
+
+This slice now owns three:
 
 ```js
-// a thunk written by hand
-const fetchJoke = () => async (dispatch) => {
-  const response = await fetch('https://icanhazdadjoke.com/', {
-    headers: { Accept: 'application/json' }
-  })
-  const data = await response.json()
-  dispatch({ type: 'joke/setJoke', payload: data.joke })
+initialState: {
+  joke: null,
+  loading: false,
+  error: null
 }
 ```
 
-You dispatch a function. That function does the async work. When it finishes it dispatches the real action. Redux middleware intercepts the function, sees it is not a plain object, and runs it instead of sending it to the reducer.
+`joke` is the data. `loading` and `error` are metadata - information about the state of the request itself, not the result. This is a common pattern. Whenever you fetch data you almost always want these three fields together because they answer three different questions the UI needs to ask:
 
-RTK does not change this pattern. It generates the ceremony around it.
+- is something happening right now? - `loading`
+- did something go wrong? - `error`
+- what did we get? - `joke`
 
-
-
-## What createAsyncThunk does
-
-`createAsyncThunk` takes two arguments: a name for the action, and the async function that does the work.
-
-```js
-export const fetchJoke = createAsyncThunk('joke/fetchJoke', async () => {
-  const response = await fetch('https://icanhazdadjoke.com/', {
-    headers: { Accept: 'application/json' }
-  })
-  const data = await response.json()
-  return data.joke
-})
-```
-
-Whatever the async function returns becomes `action.payload` when the request completes. That return value is the only bridge between the async world and the store.
-
-RTK also generates three lifecycle action types automatically from the name you gave it:
-
-| Type | When it fires |
-|---|---|
-| `joke/fetchJoke/pending` | The moment dispatch is called, before the fetch begins |
-| `joke/fetchJoke/fulfilled` | The fetch completed and returned a result |
-| `joke/fetchJoke/rejected` | The fetch failed or threw an error |
-
-This demo only handles `fulfilled` - the happy path. The pending and rejected cases are real and important, and they are the focus of the next branch.
+They live in the same slice because they all belong to the same feature. They change together, they are read together, and they describe the same thing.
 
 
 
-## Why extraReducers and not reducers
+## Handling all three lifecycle cases
 
-The slice has two sections for handling actions: `reducers` and `extraReducers`.
-
-`reducers` is for actions that belong to this slice - actions that `createSlice` generates for you.
-
-`extraReducers` is for actions that were defined outside the slice. The thunk lives above the slice definition, not inside it - so the slice responds to it here:
+Each lifecycle action has one job - set the flags correctly and nothing else:
 
 ```js
 extraReducers: (builder) => {
-  builder.addCase(fetchJoke.fulfilled, (state, action) => {
-    state.joke = action.payload
-  })
+  builder
+    .addCase(fetchJoke.pending, (state) => {
+      state.loading = true
+      state.error = null
+    })
+    .addCase(fetchJoke.fulfilled, (state, action) => {
+      state.loading = false
+      state.joke = action.payload
+    })
+    .addCase(fetchJoke.rejected, (state, action) => {
+      state.loading = false
+      state.error = action.error.message
+    })
 }
 ```
 
-`fetchJoke.fulfilled` is the action type RTK generated. When that action fires, this case runs and `action.payload` is the joke string that the thunk returned.
-
-This is the full journey of a state change with async involved:
-
-1. Component calls `dispatch(fetchJoke())`
-2. RTK dispatches `joke/fetchJoke/pending` - the request is starting
-3. The async function runs - the fetch goes out, the response comes back
-4. RTK dispatches `joke/fetchJoke/fulfilled` with `payload: data.joke`
-5. `extraReducers` catches `fulfilled`, sets `state.joke`
-6. `JokeCard` is subscribed via `useSelector` - it re-renders with the new joke
+Notice the symmetry. `pending` opens the gate - sets `loading` to true and clears any previous error. Both `fulfilled` and `rejected` close it - they set `loading` back to false and then do their own thing with the result. Every case has a clear, single responsibility.
 
 
 
-## What the component does
+## One thing to watch
 
-From the component's perspective almost nothing has changed:
+In `fulfilled` the result lives at `action.payload` - that is whatever the thunk returned.
+
+In `rejected` the error lives at `action.error.message` - that is RTK's own error shape, not `action.payload`. These are different and easy to confuse. If you try to read `action.payload` in the rejected case you will get `undefined`.
+
+
+
+## What changed in the component
+
+`useSelector` now pulls all three fields at once:
 
 ```js
-const dispatch = useDispatch()
-
-dispatch(fetchJoke())
+const { joke, loading, error } = useSelector(state => state.joke)
 ```
 
-This looks identical to dispatching a plain action. The component does not know or care that `fetchJoke` is async. The thunk handles everything out of sight - the component just fires and forgets.
+The UI renders a different thing depending on which flag is active. Only one should be true at any moment - `pending` sets `loading` to true and clears `error`, so you will never see both a spinner and an error message at the same time. The slice enforces that guarantee.
 
-`useEffect` with an empty dependency array fires once on mount, so there is always a joke visible when the page loads. The button dispatches the same thunk again to fetch a new one.
+The button is disabled while `loading` is true so a second request cannot be fired while one is already in flight.
 
-## Reference
 
-- Repo from class: https://github.com/NicholasLennox/redux-toolkit-intro
-- RTK docs: https://redux-toolkit.js.org/api/createAsyncThunk
+
+## The full picture
+
+Adding loading and error handling required:
+
+- two new fields in `initialState`
+- two new cases in `extraReducers`
+- conditional rendering in the component
+
+The thunk itself did not change at all. The async function is still just a fetch that returns a joke string. The lifecycle actions RTK generates handled the rest - you just told the slice what to do when each one fired.
