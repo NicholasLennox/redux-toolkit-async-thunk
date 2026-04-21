@@ -65,6 +65,28 @@ This demo only handles `fulfilled` - the happy path. The pending and rejected ca
 
 
 
+## Exporting the thunk vs exporting action creators
+
+In the language demo you exported action creators like this:
+
+```js
+export const { setLanguage } = languageSlice.actions
+```
+
+That works because `setLanguage` was defined inside `reducers` - `createSlice` generated the action creator and put it on `.actions`.
+
+`fetchJoke` is different. It was created with `createAsyncThunk` and defined outside the slice entirely. `createSlice` never saw it, so it never generated anything for it. The action creator already exists on the line where it was defined - the `export` there is all you need:
+
+```js
+export const fetchJoke = createAsyncThunk('joke/fetchJoke', async () => {
+  ...
+})
+```
+
+The slice responds to it in `extraReducers`, but it does not own it. The rule is simple - if it came from `reducers`, export it from `.actions`. If it came from `createAsyncThunk`, export it where it is defined.
+
+
+
 ## Why extraReducers and not reducers
 
 The slice has two sections for handling actions: `reducers` and `extraReducers`.
@@ -108,8 +130,12 @@ This looks identical to dispatching a plain action. The component does not know 
 
 `useEffect` with an empty dependency array fires once on mount, so there is always a joke visible when the page loads. The button dispatches the same thunk again to fetch a new one.
 
+
+
 ## Want to see the full implementation?
+
 The `complete-example` branch extends this demo with loading and error states - the full reality of handling a network request in RTK. The thunk itself does not change. The slice grows two new fields and two new cases, and the component reflects all three possible states in the UI.
+
 That branch is a good next read once the core pattern here makes sense.
 
 ## Reference
