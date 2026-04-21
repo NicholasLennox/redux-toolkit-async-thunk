@@ -108,6 +108,10 @@ This looks identical to dispatching a plain action. The component does not know 
 
 `useEffect` with an empty dependency array fires once on mount, so there is always a joke visible when the page loads. The button dispatches the same thunk again to fetch a new one.
 
+## Want to see the full implementation?
+The `complete-example` branch extends this demo with loading and error states - the full reality of handling a network request in RTK. The thunk itself does not change. The slice grows two new fields and two new cases, and the component reflects all three possible states in the UI.
+That branch is a good next read once the core pattern here makes sense.
+
 ## Reference
 
 - Repo from class: https://github.com/NicholasLennox/redux-toolkit-intro
